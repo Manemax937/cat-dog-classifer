@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classification - Node.js Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section {
+            border: 3px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-section:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        
+        .upload-section.dragover {
+            border-color: #667eea;
+            background-color: #f0f8ff;
+            transform: scale(1.02);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .upload-btn, .predict-btn, .health-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .upload-btn:hover, .predict-btn:hover, .health-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .predict-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .image-preview {
+            max-width: 300px;
+            max-height: 300px;
+            border-radius: 10px;
+            margin: 20px auto;
+            display: block;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .success {
+            background: linear-gradient(45deg, #d4edda, #c3e6cb);
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .error {
+            background: linear-gradient(45deg, #f8d7da, #f5c6cb);
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 18px;
+        }
+        
+        .confidence-bar {
+            background-color: #e9ecef;
+            border-radius: 10px;
+            height: 25px;
+            margin: 10px 0;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            transition: width 0.8s ease;
+        }
+        
+        .confidence-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .status-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐱🐶 AI Image Classifier</h1>
+        <p style="text-align: center; color: #666;">Upload an image to see if it's a cat or dog!</p>
+        
+        <div class="upload-section" id="uploadArea">
+            <div>
+                <h3>📸 Select Image</h3>
+                <p>Drag & drop an image here or click to browse</p>
+                <input type="file" id="imageInput" accept="image/*">
+                <button class="upload-btn" onclick="document.getElementById('imageInput').click()">
+                    Choose Image
+                </button>
+            </div>
+        </div>
+        
+        <div id="imagePreview"></div>
+        
+        <div style="text-align: center;">
+            <button class="predict-btn" id="predictBtn" onclick="uploadAndPredict()" disabled>
+                🚀 Predict
+            </button>
+        </div>
+        
+        <div id="result"></div>
+        
+        <div class="status-section">
+            <h3>🔧 System Status</h3>
+            <button class="health-btn" onclick="checkHealth()">Check API Health</button>
+            <div id="healthStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+        let selectedFile = null;
+
+        // Setup event listeners
+        const imageInput = document.getElementById('imageInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const predictBtn = document.getElementById('predictBtn');
+
+        imageInput.addEventListener('change', handleFileSelect);
+        uploadArea.addEventListener('click', () => imageInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('drop', handleDrop);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                showImagePreview(file);
+                predictBtn.disabled = false;
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = event.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                selectedFile = files[0];
+                showImagePreview(files[0]);
+                predictBtn.disabled = false;
+            }
+        }
+
+        function showImagePreview(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('imagePreview').innerHTML = 
+                    `<img src="${e.target.result}" alt="Preview" class="image-preview">`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadAndPredict() {
+            if (!selectedFile) {
+                alert('Please select an image first!');
+                return;
+            }
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Analyzing your image...
+                </div>
+            `;
+            predictBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                console.log('Uploading file:', selectedFile.name);
+                
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (response.ok && data.success) {
+                    const prediction = data.prediction;
+                    const confidence = (prediction.confidence * 100);
+                    
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h3>🎉 Prediction Results</h3>
+                            <div style="text-align: center;">
+                                <h2 style="color: #28a745; margin: 20px 0;">
+                                    ${prediction.predicted_class_name.toUpperCase()}
+                                </h2>
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: ${confidence}%"></div>
+                                    <div class="confidence-text">${confidence.toFixed(1)}% Confident</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 20px;">
+                                <h4>Detailed Probabilities:</h4>
+                                <p>🐱 Cats: ${(prediction.probabilities[0] * 100).toFixed(1)}%</p>
+                                <p>🐶 Dogs: ${(prediction.probabilities[1] * 100).toFixed(1)}%</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Error</h3>
+                            <p>${data.error || data.detail || 'Unknown error occurred'}</p>
+                            <p><small>Response: ${JSON.stringify(data)}</small></p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Connection Error</h3>
+                        <p>Could not connect to the Node.js server.</p>
+                        <p>Make sure your server is running on ${API_URL}</p>
+                        <p><small>Error: ${error.message}</small></p>
+                    </div>
+                `;
+            }
+
+            predictBtn.disabled = false;
+        }
+
+        async function checkHealth() {
+            const healthDiv = document.getElementById('healthStatus');
+            healthDiv.innerHTML = '<div class="spinner"></div>Checking system health...';
+
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    healthDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>✅ System Status</h4>
+                            <p><strong>Node.js Gateway:</strong> ${data.gateway}</p>
+                            <p><strong>Python API:</strong> ${data.python_api.status || 'Connected'}</p>
+                            <p><strong>Model Loaded:</strong> ${data.python_api.model_loaded ? 'Yes' : 'No'}</p>
+                            <p><strong>Classes:</strong> ${data.python_api.num_classes || 'Unknown'}</p>
+                        </div>
+                    `;
+                } else {
+                    healthDiv.innerHTML = `
+                        <div class="result error">
+                            <h4>❌ Health Check Failed</h4>
+                            <p>${data.error || 'Unknown error'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                healthDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Cannot Connect</h4>
+                        <p>Make sure your Node.js server is running on ${API_URL}</p>
+                        <p><small>Error: ${error.message}</small></p>
+                    </div>
+                `;
+            }
+        }
+
+        // Check health on page load
+        window.onload = function() {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>

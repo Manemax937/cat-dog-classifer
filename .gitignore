@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+
+# Virtual environment
+venv/
+env/
+.venv/
+Lib/
+Scripts/
+share/
+
+# Node.js
+node_modules/
+uploads/
+
+# Model files (if too large, you can keep them local)
+*.pt
+*.pth
+
+# System / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
